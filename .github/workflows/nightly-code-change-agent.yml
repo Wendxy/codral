@@ -1,0 +1,93 @@
+name: Nightly Code Change Agent
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run agent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+          DRY_RUN: ${{ vars.DRY_RUN || 'false' }}
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+        run: npm run start
+
+      - name: Commit checkpoint
+        if: success()
+        run: |
+          if git diff --quiet .state/checkpoints.json; then
+            echo "No checkpoint changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .state/checkpoints.json
+          git commit -m "chore(agent): update checkpoint"
+          git push
+
+      - name: Open failure issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const marker = "[automation] nightly code change agent failure";
+            const body = [
+              marker,
+              "Automated run failed.",
+              "",
+              `Workflow: ${context.workflow}`,
+              `Run URL: ${runUrl}`,
+              `Commit: ${context.sha}`
+            ].join("\n");
+
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "automation,incident",
+              per_page: 100
+            });
+
+            const target = existing.find((issue) => issue.body && issue.body.includes(marker));
+            if (target) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: target.number,
+                body
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `Nightly code change agent failed (${new Date().toISOString().slice(0,10)})`,
+                body,
+                labels: ["automation", "incident"]
+              });
+            }

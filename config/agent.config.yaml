@@ -1,0 +1,24 @@
+github:
+  org: "your-org"
+  includeRepos: []
+  excludeRepos:
+    - "code-change-agent"
+  mainBranchDefault: "main"
+
+authors:
+  emails:
+    - "you@example.com"
+  usernames:
+    - "your-github-username"
+
+notion:
+  databaseId: "your-notion-database-id"
+
+whatsapp:
+  recipient: "61400000000"
+  templateName: "daily_code_summary"
+  languageCode: "en"
+
+openai:
+  model: "gpt-4.1-mini"
+  maxTokens: 1200
