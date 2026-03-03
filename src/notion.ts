@@ -161,14 +161,19 @@ export async function createDailyNotionEntry(
       ]
     })
   );
+  const pageId = "id" in page ? page.id : "";
+  const pageUrl = "url" in page && typeof page.url === "string" ? page.url : "";
 
   await withRetry(async () => {
+    if (!pageId || !pageUrl) {
+      return;
+    }
     try {
       await notion.pages.update({
-        page_id: page.id,
+        page_id: pageId,
         properties: {
           "Notion URL": {
-            url: page.url
+            url: pageUrl
           }
         }
       });
@@ -177,5 +182,5 @@ export async function createDailyNotionEntry(
     }
   });
 
-  return page.url;
+  return pageUrl;
 }

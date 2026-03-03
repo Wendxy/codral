@@ -11,6 +11,39 @@ Nightly GitHub org scan for author-filtered changes, AI summarization, Notion do
 - Writes a daily report to Notion
 - Sends a WhatsApp executive summary with the Notion link
 - Stores checkpoint state in `.state/checkpoints.json`
+- Uses LangGraph to orchestrate each agent stage as explicit graph nodes
+
+## LangGraph Workflow
+
+The runtime is orchestrated in [`graph.ts`](src/agent/graph.ts) as:
+
+1. `loadRuntime`: load env vars and run metadata
+2. `timeGate`: enforce Sydney-midnight execution window
+3. `setup`: load config, checkpoint, and run window
+4. `collectChanges`: discover repos and fetch filtered commits
+5. `summarize`: run per-repo + executive AI summarization
+6. `publish`: write Notion entry and send WhatsApp summary
+7. `checkpoint`: persist next checkpoint only on success
+
+If `@langchain/langgraph` is not installed in the runtime environment, the app falls back to the same node sequence runner so production jobs keep working.
+
+## Tools and Skills
+
+Defined in [`catalog.ts`](src/agent/catalog.ts):
+
+- Tools:
+  - GitHub Octokit API
+  - OpenAI Responses API
+  - Notion API
+  - WhatsApp Cloud API
+  - Checkpoint JSON Store
+- Skills:
+  - Time Gate Skill
+  - GitHub Scan Skill
+  - Change Analysis Skill
+  - Notion Publishing Skill
+  - WhatsApp Notification Skill
+  - Checkpoint Skill
 
 ## Setup
 
