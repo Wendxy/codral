@@ -210,7 +210,7 @@ async function publishNode(state: AgentGraphState): Promise<AgentGraphUpdate> {
   return { notionUrl, report: updatedReport };
 }
 
-async function checkpointNode(state: AgentGraphState): Promise<AgentGraphUpdate> {
+async function persistCheckpointNode(state: AgentGraphState): Promise<AgentGraphUpdate> {
   if (state.shouldRun === false) {
     return {};
   }
@@ -238,7 +238,7 @@ const NODE_SEQUENCE: AgentNode[] = [
   collectChangesNode,
   summarizeNode,
   publishNode,
-  checkpointNode
+  persistCheckpointNode
 ];
 
 async function runSequentialGraph(initial: AgentGraphState): Promise<AgentGraphState> {
@@ -250,8 +250,10 @@ async function runSequentialGraph(initial: AgentGraphState): Promise<AgentGraphS
   return state;
 }
 
-async function runWithLangGraph(initial: AgentGraphState): Promise<AgentGraphState> {
-  const langgraph = await import("@langchain/langgraph");
+async function runWithLangGraph(
+  initial: AgentGraphState,
+  langgraph: typeof import("@langchain/langgraph")
+): Promise<AgentGraphState> {
   const { Annotation, StateGraph, START, END } = langgraph;
 
   const runtimeState = Annotation.Root({
@@ -277,15 +279,15 @@ async function runWithLangGraph(initial: AgentGraphState): Promise<AgentGraphSta
     .addNode("collectChanges", collectChangesNode)
     .addNode("summarize", summarizeNode)
     .addNode("publish", publishNode)
-    .addNode("checkpoint", checkpointNode)
+    .addNode("persistCheckpoint", persistCheckpointNode)
     .addEdge(START, "loadRuntime")
     .addEdge("loadRuntime", "timeGate")
     .addEdge("timeGate", "setup")
     .addEdge("setup", "collectChanges")
     .addEdge("collectChanges", "summarize")
     .addEdge("summarize", "publish")
-    .addEdge("publish", "checkpoint")
-    .addEdge("checkpoint", END)
+    .addEdge("publish", "persistCheckpoint")
+    .addEdge("persistCheckpoint", END)
     .compile();
 
   return graph.invoke(initial);
@@ -294,11 +296,14 @@ async function runWithLangGraph(initial: AgentGraphState): Promise<AgentGraphSta
 export async function runAgentGraph(): Promise<AgentGraphState> {
   const initial: AgentGraphState = {};
 
+  let langgraph: typeof import("@langchain/langgraph");
   try {
-    return await runWithLangGraph(initial);
+    langgraph = await import("@langchain/langgraph");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn(`LangGraph unavailable, using sequential fallback: ${message}`);
     return runSequentialGraph(initial);
   }
+
+  return runWithLangGraph(initial, langgraph);
 }

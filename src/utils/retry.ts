@@ -48,6 +48,15 @@ function extractRetryAfterMs(error: unknown): number | null {
 function defaultShouldRetry(error: unknown): boolean {
   const status = extractStatus(error);
   if (status === null) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error && "message" in error
+          ? String((error as { message: unknown }).message)
+          : "";
+    if (message.includes("ByteString") || message.includes("greater than 255")) {
+      return false;
+    }
     return true;
   }
   return DEFAULT_RETRYABLE_STATUS.has(status);

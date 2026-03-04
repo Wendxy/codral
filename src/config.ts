@@ -4,6 +4,8 @@ import yaml from "js-yaml";
 import { z } from "zod";
 import type { AgentConfig, RuntimeEnv } from "./types.js";
 
+const QUOTE_CHARS = new Set(["\"", "'", "“", "”", "‘", "’"]);
+
 const configSchema = z.object({
   github: z.object({
     org: z.string().min(1),
@@ -30,14 +32,27 @@ const configSchema = z.object({
 });
 
 function normalizeConfig(data: AgentConfig): AgentConfig {
+  const githubOrg = data.github.org.trim();
+  if (/[^\x00-\x7F]/.test(githubOrg)) {
+    throw new Error("Invalid github.org: contains non-ASCII characters (possibly smart quotes).");
+  }
+
+  const usernames = data.authors.usernames.map((value) => value.toLowerCase().trim());
+  for (const username of usernames) {
+    if (/[^\x00-\x7F]/.test(username)) {
+      throw new Error("Invalid authors.usernames value: contains non-ASCII characters.");
+    }
+  }
+
   return {
     ...data,
     authors: {
       emails: data.authors.emails.map((value) => value.toLowerCase().trim()),
-      usernames: data.authors.usernames.map((value) => value.toLowerCase().trim())
+      usernames
     },
     github: {
       ...data.github,
+      org: githubOrg,
       includeRepos: data.github.includeRepos.map((value) => value.trim()).filter(Boolean),
       excludeRepos: data.github.excludeRepos.map((value) => value.trim()).filter(Boolean)
     }
@@ -57,14 +72,23 @@ function requireEnv(name: string): string {
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
-  return value;
+  let cleaned = value.trim();
+  if (cleaned.length >= 2 && QUOTE_CHARS.has(cleaned[0]) && QUOTE_CHARS.has(cleaned[cleaned.length - 1])) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  if (/[^\x00-\x7F]/.test(cleaned)) {
+    throw new Error(
+      `Invalid ${name}: contains non-ASCII characters (likely smart quotes). Re-export it using plain ASCII quotes or no quotes.`
+    );
+  }
+  return cleaned;
 }
 
 export function loadRuntimeEnv(): RuntimeEnv {
   const dryRun = process.env.DRY_RUN === "true";
-  const notionToken = process.env.NOTION_TOKEN ?? "";
-  const whatsappAccessToken = process.env.WHATSAPP_ACCESS_TOKEN ?? "";
-  const whatsappPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID ?? "";
+  const notionToken = process.env.NOTION_TOKEN?.trim() ?? "";
+  const whatsappAccessToken = process.env.WHATSAPP_ACCESS_TOKEN?.trim() ?? "";
+  const whatsappPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim() ?? "";
 
   if (!dryRun) {
     if (!notionToken) {

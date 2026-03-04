@@ -1,21 +1,20 @@
 github:
-  org: "your-org"
+  org: "wendxy"
   includeRepos: []
-  excludeRepos:
-    - "code-change-agent"
+  excludeRepos: []
   mainBranchDefault: "main"
 
 authors:
   emails:
-    - "you@example.com"
+    - "ngangiang.le92@gmail.com"
   usernames:
-    - "your-github-username"
+    - "wendxy"
 
 notion:
-  databaseId: "your-notion-database-id"
+  databaseId: "318b6fad96858035bc53d1243b8a9171"
 
 whatsapp:
-  recipient: "61400000000"
+  recipient: "61431352142"
   templateName: "daily_code_summary"
   languageCode: "en"
 

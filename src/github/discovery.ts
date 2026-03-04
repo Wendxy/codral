@@ -2,6 +2,13 @@ import type { Octokit } from "@octokit/rest";
 import type { AgentConfig, RepoTarget } from "../types.js";
 import { withRetry } from "../utils/retry.js";
 
+interface GitHubRepoSummary {
+  archived?: boolean;
+  disabled?: boolean;
+  full_name: string;
+  default_branch?: string | null;
+}
+
 function normalizeRepoName(fullName: string): string {
   return fullName.toLowerCase().trim();
 }
@@ -32,15 +39,35 @@ export async function discoverRepositories(
   const includeSet = new Set(config.includeRepos.map((repo) => normalizeRepoName(repo)));
   const excludeSet = new Set(config.excludeRepos.map((repo) => normalizeRepoName(repo)));
 
-  const repos = await withRetry(() =>
-    octokit.paginate(octokit.repos.listForOrg, {
-      org: config.org,
-      type: "all",
-      per_page: 100,
-      sort: "full_name",
-      direction: "asc"
-    })
-  );
+  let repos: GitHubRepoSummary[];
+
+  try {
+    repos = await withRetry(() =>
+      octokit.paginate(octokit.repos.listForOrg, {
+        org: config.org,
+        type: "all",
+        per_page: 100,
+        sort: "full_name",
+        direction: "asc"
+      })
+    );
+  } catch (error) {
+    const status = (error as { status?: number }).status;
+    if (status !== 404) {
+      throw error;
+    }
+
+    // If `github.org` is actually a personal username, org endpoint returns 404.
+    repos = await withRetry(() =>
+      octokit.paginate(octokit.repos.listForUser, {
+        username: config.org,
+        type: "owner",
+        per_page: 100,
+        sort: "full_name",
+        direction: "asc"
+      })
+    );
+  }
 
   return repos
     .filter((repo) => !repo.archived && !repo.disabled)
