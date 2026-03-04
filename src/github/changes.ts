@@ -53,6 +53,55 @@ function trimPatch(input: string | undefined): string | undefined {
   return `${redacted.slice(0, 1_500)}\n...[truncated]`;
 }
 
+type CommitListItem = Awaited<ReturnType<Octokit["repos"]["listCommits"]>>["data"][number];
+
+async function listCommitsWithBranchFallback(
+  octokit: Octokit,
+  owner: string,
+  repoName: string,
+  defaultBranch: string,
+  window: RunWindow
+): Promise<CommitListItem[]> {
+  const listWithBranch = () =>
+    withRetry(() =>
+      octokit.paginate(octokit.repos.listCommits, {
+        owner,
+        repo: repoName,
+        sha: defaultBranch,
+        since: window.startIso,
+        until: window.endIso,
+        per_page: 100
+      })
+    );
+
+  try {
+    return await listWithBranch();
+  } catch (error) {
+    const status = (error as { status?: number }).status;
+
+    // 409 can mean empty repository; 422 can mean invalid `sha`.
+    if (status === 409) {
+      console.warn(`Skipping ${owner}/${repoName}: GitHub returned 409 for branch '${defaultBranch}'.`);
+      return [];
+    }
+
+    if (status === 422) {
+      const fallback = await withRetry(() =>
+        octokit.paginate(octokit.repos.listCommits, {
+          owner,
+          repo: repoName,
+          since: window.startIso,
+          until: window.endIso,
+          per_page: 100
+        })
+      );
+      return fallback;
+    }
+
+    throw error;
+  }
+}
+
 function isStrictlyInsideWindow(dateIso: string | null | undefined, window: RunWindow): boolean {
   if (!dateIso) {
     return false;
@@ -74,16 +123,7 @@ export async function collectRepoCommits(
 ): Promise<CommitRecord[]> {
   const { owner, repo: repoName } = splitFullName(repo.fullName);
 
-  const commits = await withRetry(() =>
-    octokit.paginate(octokit.repos.listCommits, {
-      owner,
-      repo: repoName,
-      sha: repo.defaultBranch,
-      since: window.startIso,
-      until: window.endIso,
-      per_page: 100
-    })
-  );
+  const commits = await listCommitsWithBranchFallback(octokit, owner, repoName, repo.defaultBranch, window);
 
   const relevant = commits.filter((commit) =>
     matchesAuthor(commit.commit.author?.email, commit.author?.login, authorFilter) &&

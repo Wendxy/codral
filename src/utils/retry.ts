@@ -1,4 +1,4 @@
-const DEFAULT_RETRYABLE_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+const DEFAULT_RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 export interface RetryOptions {
   retries?: number;
