@@ -5,3 +5,4 @@ dist
 coverage
 .npm-cache
 .DS_Store
+config/agent.config.yaml

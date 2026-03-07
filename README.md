@@ -47,7 +47,7 @@ Defined in [`catalog.ts`](src/agent/catalog.ts):
 
 ## Setup
 
-1. Copy and edit [`config/agent.config.yaml`](config/agent.config.yaml).
+1. Copy [`config/agent.config.example.yaml`](config/agent.config.example.yaml) to `config/agent.config.yaml`, then edit `config/agent.config.yaml`.
 2. Configure GitHub Actions secrets:
    - `GH_ORG_TOKEN` (recommended fine-grained token with read access to scanned repos; fallback is workflow `github.token`)
    - `OPENAI_API_KEY`
