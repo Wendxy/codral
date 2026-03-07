@@ -97,4 +97,4 @@ The template body should expect parameters in this order:
 
 - Phase 1: run with `DRY_RUN=true`
 - Phase 2: enable Notion writes only (comment out WhatsApp call)
-- Phase 3: enable WhatsApp delivery
+- Phase 3: enable WhatsApp delivery  
